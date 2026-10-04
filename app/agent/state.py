@@ -12,6 +12,8 @@ class ReviewState(TypedDict, total=False):
     bugs: list
     security_issues: list
     quality_issues: list
+    all_findings: list      # merged, de-duplicated, sorted findings
+    counts: dict            # how many findings per severity
     review_summary: str
     final_verdict: str
     status: str
