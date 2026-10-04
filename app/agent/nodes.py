@@ -1,4 +1,5 @@
 import os
+import re
 
 from dotenv import load_dotenv
 from google import genai
@@ -59,16 +60,33 @@ security_analysis = _make_analyzer("security", "security_issues")
 quality_analysis = _make_analyzer("quality", "quality_issues")
 
 
+def _tokens(title):
+    return {w for w in re.findall(r"[a-z0-9]+", title.lower()) if len(w) > 2}
+
+
+def _similar(a, b):
+    """Two findings are the same problem if they are in the same file, a few lines apart, with similar titles."""
+    if a["file"] != b["file"] or abs(a["line"] - b["line"]) > 3:
+        return False
+    ta, tb = _tokens(a["title"]), _tokens(b["title"])
+    return bool(ta and tb) and len(ta & tb) / len(ta | tb) >= 0.5
+
+
 def aggregate(state):
-    """Merges the three lists, removes duplicates and sorts by severity."""
+    """Merges the three lists, merges duplicates (keeping the most severe version) and sorts by severity."""
     tagged = ([("bug", f) for f in state.get("bugs", [])]
               + [("security", f) for f in state.get("security_issues", [])]
               + [("quality", f) for f in state.get("quality_issues", [])])
-    seen, merged = set(), []
+    merged = []
     for category, f in tagged:
-        key = (f["file"], f["line"], f["title"].strip().lower())
-        if key not in seen:
-            seen.add(key)
+        for m in merged:
+            if _similar(m, f):
+                if SEVERITY_ORDER.index(f["severity"]) < SEVERITY_ORDER.index(m["severity"]):
+                    m.update({k: f[k] for k in ("severity", "title", "explanation", "fix", "line")})
+                if category not in m["category"].split("+"):
+                    m["category"] += "+" + category
+                break
+        else:
             merged.append({**f, "category": category})
     merged.sort(key=lambda f: SEVERITY_ORDER.index(f["severity"]))
     counts = {s: sum(1 for f in merged if f["severity"] == s) for s in SEVERITY_ORDER}
@@ -89,3 +107,4 @@ def decide_verdict(state):
         verdict = "REVIEW_REQUIRED"       # an AI step failed, so never auto-approve
     assert verdict in ALLOWED_VERDICTS
     return {"final_verdict": verdict, "status": "completed"}
+
