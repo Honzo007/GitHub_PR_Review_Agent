@@ -1,11 +1,59 @@
 <!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"><title>GitHub PR Review Agent</title></head>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GitHub PR Review Agent</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
 <body>
-  <h1>GitHub PR Review Agent</h1>
-  <input id="url" size="50" value="https://github.com/user/repository">
-  <button onclick="startReview()">Start Review</button>
-  <pre id="log"></pre>
-  <script src="/static/app.js"></script>
+<main>
+  <header>
+    <h1>GitHub PR Review Agent</h1>
+    <p>AI-powered automated code review</p>
+  </header>
+
+  <section class="input-row">
+    <input id="url" type="text" placeholder="https://github.com/user/repository" autocomplete="off">
+    <button id="start">Start Review</button>
+  </section>
+  <div id="error" class="error" hidden></div>
+
+  <section class="pipeline">
+    <div class="stage" id="stage-github" data-status="pending">
+      <span class="num">01</span><h2>PUSH CODE</h2><p class="state">Pending</p>
+    </div>
+    <div class="arrow">&#10140;</div>
+    <div class="stage" id="stage-pr" data-status="pending">
+      <span class="num">02</span><h2>OPEN PR</h2><p class="state">Pending</p>
+    </div>
+    <div class="arrow">&#10140;</div>
+    <div class="stage" id="stage-ai" data-status="pending">
+      <span class="num">03</span><h2>AI REVIEW</h2><p class="state">Pending</p>
+      <ul class="subs">
+        <li id="sub-bug_analysis" data-status="pending">Analyzing bugs</li>
+        <li id="sub-security_analysis" data-status="pending">Analyzing security</li>
+        <li id="sub-quality_analysis" data-status="pending">Checking code quality</li>
+        <li id="sub-final_verdict" data-status="pending">Final verdict</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="card">
+    <h3>Live progress</h3>
+    <pre id="log">Waiting to start...</pre>
+  </section>
+
+  <section id="result" hidden>
+    <h2 class="result-title">AI REVIEW RESULT</h2>
+    <div id="verdict" class="verdict"></div>
+    <p id="summary" class="summary"></p>
+    <div id="counts" class="counts"></div>
+    <div id="meta" class="meta"></div>
+    <div id="warnings"></div>
+    <div id="issues"></div>
+  </section>
+</main>
+<script src="/static/app.js"></script>
 </body>
 </html>

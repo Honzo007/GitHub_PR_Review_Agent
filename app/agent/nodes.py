@@ -1,9 +1,10 @@
 import os
 import re
+import time
 
 from dotenv import load_dotenv
 from google import genai
-from google.genai import types
+from google.genai import errors, types
 
 from app.agent.config import (ALLOWED_VERDICTS, DEFAULT_VERDICT, MAX_DIFF_CHARS, MODEL,
                               SEVERITY_ORDER, VERDICT_RULES)
@@ -12,24 +13,37 @@ from app.agent.schemas import AnalysisResult
 
 
 def _ask_gemini(kind, diff):
-    """Sends the diff to Gemini, validates the JSON answer, and retries once if the shape is wrong."""
+    """Sends the diff to Gemini and validates the JSON answer.
+    Tries up to 3 times (waiting 3 and 8 seconds) when Google's servers are busy or the answer has the wrong shape."""
     load_dotenv()
     key = os.environ.get("GEMINI_API_KEY")
     if not key:
         raise RuntimeError("GEMINI_API_KEY is missing from the .env file")
     client = genai.Client(api_key=key)
-    for _attempt in range(2):
-        reply = client.models.generate_content(
-            model=MODEL,
-            contents=build_prompt(kind, diff[:MAX_DIFF_CHARS]),
-            config=types.GenerateContentConfig(system_instruction=SYSTEM_PROMPT,
-                                               response_mime_type="application/json", temperature=0.2))
+    last_error = None
+    for delay in (0, 3, 8):
+        if delay:
+            time.sleep(delay)
+        try:
+            reply = client.models.generate_content(
+                model=MODEL,
+                contents=build_prompt(kind, diff[:MAX_DIFF_CHARS]),
+                config=types.GenerateContentConfig(system_instruction=SYSTEM_PROMPT,
+                                                   response_mime_type="application/json", temperature=0.2))
+        except errors.ServerError as e:           # Google's side is busy (500/503): wait and retry
+            last_error = e
+            continue
+        except errors.ClientError as e:
+            if getattr(e, "code", None) == 429:   # free-tier rate limit: wait and retry
+                last_error = e
+                continue
+            raise
         text = (reply.text or "").strip().replace("```json", "").replace("```", "").strip()
         try:
             return [f.model_dump() for f in AnalysisResult.model_validate_json(text).findings]
-        except ValueError:
-            continue                      # wrong shape: try once more
-    raise RuntimeError("the AI returned an invalid answer twice")
+        except ValueError as e:                   # wrong shape: try again
+            last_error = e
+    raise last_error
 
 
 # ---------------- graph steps (nodes) ----------------
