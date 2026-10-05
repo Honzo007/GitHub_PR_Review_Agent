@@ -17,6 +17,17 @@ def parse_repo_url(url):
     return f"{match.group(1)}/{match.group(2)}"
 
 
+_PR_URL = re.compile(r"^https://github\.com/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)/pull/(\d+)(?:[/?#].*)?$")
+
+
+def parse_pr_url(url):
+    """Accepts links like https://github.com/owner/repo/pull/12 and returns ('owner/repo', 12)."""
+    match = _PR_URL.match(url.strip())
+    if not match:
+        raise ValueError("Please enter a link like https://github.com/owner/repo/pull/12")
+    return f"{match.group(1)}/{match.group(2)}", int(match.group(3))
+
+
 def open_repository(repo_url):
     """Stage 1, part 1: connect to GitHub and open the repository."""
     full_name = parse_repo_url(repo_url)

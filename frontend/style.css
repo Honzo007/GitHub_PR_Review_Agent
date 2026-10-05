@@ -70,3 +70,7 @@ button:disabled { background:#30363d; color:var(--muted); cursor:not-allowed; }
 .issue p { margin:6px 0; }
 .fix { padding:10px 12px; background:rgba(63,185,80,.08); border-left:3px solid var(--green); border-radius:4px; }
 @media (max-width:760px) { .pipeline { flex-direction:column; } .arrow { transform:rotate(90deg); } }
+
+.modes { display:flex; gap:24px; margin-bottom:12px; color:var(--muted); flex-wrap:wrap; }
+.modes label { cursor:pointer; }
+.modes input { flex:none; width:auto; padding:0; margin-right:6px; accent-color:var(--blue); }

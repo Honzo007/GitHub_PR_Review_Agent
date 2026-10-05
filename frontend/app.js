@@ -57,6 +57,23 @@ function handleEvent(ev) {
   }
 }
 
+function currentMode() {
+  return document.querySelector('input[name="mode"]:checked').value;
+}
+
+// "pr" = review an existing Pull Request, "demo" = create our own test PR
+function applyMode() {
+  const pr = currentMode() === "pr";
+  $("url").placeholder = pr ? "https://github.com/owner/repo/pull/12" : "https://github.com/user/repository";
+  $("t-github").textContent = pr ? "CONNECT REPO" : "PUSH CODE";
+  $("t-pr").textContent = pr ? "LOAD PR" : "OPEN PR";
+}
+
+function requestBody() {
+  const link = $("url").value.trim();
+  return currentMode() === "pr" ? { pr_url: link } : { repo_url: link };
+}
+
 async function startReview() {
   const button = $("start");
   resetUI();
@@ -65,7 +82,7 @@ async function startReview() {
     const res = await fetch("/api/review", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ repo_url: $("url").value.trim() }),
+      body: JSON.stringify(requestBody()),
     });
     const data = await res.json();
     if (!res.ok) { showError(data.error || "Could not start the review."); button.disabled = false; return; }
@@ -117,7 +134,7 @@ function renderResult(r) {
   const meta = $("meta");
   meta.replaceChildren();
   meta.append(document.createTextNode(
-    r.repository + "  |  " + r.files_analyzed + " files analyzed  |  +" + r.additions + " / -" + r.deletions + "  |  "));
+    (r.pr_title ? r.pr_title + "  |  " : "") + r.repository + "  |  " + r.files_analyzed + " files analyzed  |  +" + r.additions + " / -" + r.deletions + "  |  "));
   if (r.pr_url && r.pr_url.startsWith("https://github.com/")) {
     const link = el("a", "", "Pull Request #" + r.pr_number);
     link.href = r.pr_url;
@@ -154,3 +171,6 @@ function renderResult(r) {
 
 $("start").addEventListener("click", startReview);
 $("url").addEventListener("keydown", (e) => { if (e.key === "Enter" && !$("start").disabled) startReview(); });
+
+document.querySelectorAll('input[name="mode"]').forEach((radio) => radio.addEventListener("change", applyMode));
+applyMode();

@@ -13,19 +13,24 @@
     <p>AI-powered automated code review</p>
   </header>
 
+  <div class="modes">
+    <label><input type="radio" name="mode" value="pr" checked> Review an existing Pull Request</label>
+    <label><input type="radio" name="mode" value="demo"> Demo: create a test PR</label>
+  </div>
+
   <section class="input-row">
-    <input id="url" type="text" placeholder="https://github.com/user/repository" autocomplete="off">
+    <input id="url" type="text" placeholder="https://github.com/owner/repo/pull/12" autocomplete="off">
     <button id="start">Start Review</button>
   </section>
   <div id="error" class="error" hidden></div>
 
   <section class="pipeline">
     <div class="stage" id="stage-github" data-status="pending">
-      <span class="num">01</span><h2>PUSH CODE</h2><p class="state">Pending</p>
+      <span class="num">01</span><h2 id="t-github">CONNECT REPO</h2><p class="state">Pending</p>
     </div>
     <div class="arrow">&#10140;</div>
     <div class="stage" id="stage-pr" data-status="pending">
-      <span class="num">02</span><h2>OPEN PR</h2><p class="state">Pending</p>
+      <span class="num">02</span><h2 id="t-pr">LOAD PR</h2><p class="state">Pending</p>
     </div>
     <div class="arrow">&#10140;</div>
     <div class="stage" id="stage-ai" data-status="pending">

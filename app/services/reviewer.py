@@ -2,8 +2,8 @@ from github import GithubException
 
 from app.agent.config import SEVERITY_ORDER
 from app.agent.graph import graph
-from app.github.pull_request import create_pull_request, read_pull_request
-from app.github.repository import create_review_branch, open_repository, push_demo_files
+from app.github.pull_request import (create_pull_request, get_pull_request, read_pull_request)
+from app.github.repository import (create_review_branch, open_repository, parse_pr_url, push_demo_files)
 from app.services.event_manager import emit, set_result
 
 # Progress messages sent to the browser after each graph step finishes.
@@ -25,8 +25,8 @@ def _friendly(e):
         if e.status == 401:
             return "GitHub authentication failed. Check your GitHub token."
         if e.status in (403, 404):
-            return ("GitHub refused the request. Check that the token has read and write access to "
-                    "Contents and Pull requests on this repository.")
+            return ("GitHub refused the request. Check that the token can access this repository "
+                    "(and has write access to Contents and Pull requests in demo mode).")
         return "Unable to complete the GitHub request."
     if isinstance(e, KeyError):
         return "Something went wrong. Please try again."
@@ -35,31 +35,52 @@ def _friendly(e):
     return "Something went wrong. Please try again."
 
 
-def run_review(review_id, repo_url):
+def run_review(review_id, repo_url="", pr_url=""):
     stage = "github"
     try:
-        # ---------- Stage 1: push code ----------
-        emit(review_id, "github", "running", "Connecting to GitHub...")
-        repo = open_repository(repo_url)
-        emit(review_id, "github", "running", "Repository validated: " + repo.full_name)
-        emit(review_id, "github", "running", "Creating review branch...")
-        branch, base = create_review_branch(repo)
-        emit(review_id, "github", "running", "Pushing code...")
-        push_demo_files(repo, branch)
-        emit(review_id, "github", "completed", "Code pushed to " + branch)
+        if pr_url:
+            # ---------- REAL MODE: review a Pull Request a person already opened ----------
+            full_name, number = parse_pr_url(pr_url)
+            emit(review_id, "github", "running", "Connecting to GitHub...")
+            repo = open_repository("https://github.com/" + full_name)
+            emit(review_id, "github", "completed", "Repository connected: " + repo.full_name)
 
-        # ---------- Stage 2: open PR ----------
-        stage = "pr"
-        emit(review_id, "pr", "running", "Creating Pull Request...")
-        pr = create_pull_request(repo, branch, base)
-        emit(review_id, "pr", "running", "Fetching PR diff...")
-        info = read_pull_request(pr)
-        emit(review_id, "pr", "completed", "Pull Request created: " + info["pr_url"])
+            stage = "pr"
+            emit(review_id, "pr", "running", f"Loading Pull Request #{number}...")
+            pr = get_pull_request(repo, number)
+            emit(review_id, "pr", "running", "Fetching PR diff...")
+            info = read_pull_request(pr)
+            emit(review_id, "pr", "completed", f"Pull Request #{number} loaded: {info['pr_title']}")
+            branch, mode = pr.head.ref, "existing_pr"
+        else:
+            # ---------- DEMO MODE: create a branch with planted bugs and open our own PR ----------
+            emit(review_id, "github", "running", "Connecting to GitHub...")
+            repo = open_repository(repo_url)
+            emit(review_id, "github", "running", "Repository validated: " + repo.full_name)
+            emit(review_id, "github", "running", "Creating review branch...")
+            branch, base = create_review_branch(repo)
+            emit(review_id, "github", "running", "Pushing code...")
+            push_demo_files(repo, branch)
+            emit(review_id, "github", "completed", "Code pushed to " + branch)
 
-        # ---------- Stage 3: AI review (LangGraph) ----------
+            stage = "pr"
+            emit(review_id, "pr", "running", "Creating Pull Request...")
+            pr = create_pull_request(repo, branch, base)
+            emit(review_id, "pr", "running", "Fetching PR diff...")
+            info = read_pull_request(pr)
+            emit(review_id, "pr", "completed", "Pull Request created: " + info["pr_url"])
+            mode = "demo"
+
+        # ---------- AI review (LangGraph) ----------
         stage = "ai_review"
-        state = {"repo_url": repo_url, "repository": repo.full_name, "pr_number": info["pr_number"],
-                 "branch_name": branch, "files_changed": info["files_changed"], "diff": info["diff"], "errors": []}
+        errors = []
+        if info["files_total"] > len(info["files_changed"]):
+            # A partial review must never be auto-approved, so this goes into errors.
+            errors.append(f"Large PR: only the first {len(info['files_changed'])} of "
+                          f"{info['files_total']} files were reviewed.")
+        state = {"repo_url": repo_url or pr_url, "repository": repo.full_name, "pr_number": info["pr_number"],
+                 "branch_name": branch, "files_changed": info["files_changed"], "diff": info["diff"],
+                 "errors": errors}
         for update in graph.stream(state, stream_mode="updates"):
             for node, output in update.items():
                 if output:
@@ -69,6 +90,7 @@ def run_review(review_id, repo_url):
 
         counts, findings = state.get("counts", {}), state.get("all_findings", [])
         result = {
+            "mode": mode,
             "verdict": state.get("final_verdict", "REVIEW_REQUIRED"),
             "summary": state.get("review_summary", ""),
             "total_issues": len(findings),
@@ -76,7 +98,7 @@ def run_review(review_id, repo_url):
             "issues": findings,
             "warnings": state.get("errors", []),
             "repository": repo.full_name, "branch": branch,
-            "pr_url": info["pr_url"], "pr_number": info["pr_number"],
+            "pr_url": info["pr_url"], "pr_number": info["pr_number"], "pr_title": info["pr_title"],
             "files_analyzed": len(info["files_changed"]),
             "additions": info["additions"], "deletions": info["deletions"],
         }
