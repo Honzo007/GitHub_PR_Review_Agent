@@ -7,34 +7,43 @@
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-<main>
-  <header>
-    <h1>GitHub PR Review Agent</h1>
-    <p>AI-powered automated code review</p>
+<nav class="topbar">
+  <div class="wrap bar">
+    <div class="brand"><span class="mark">&#10003;</span> PR Review Agent</div>
+    <a href="https://github.com" target="_blank" rel="noopener">GitHub</a>
+  </div>
+</nav>
+
+<main class="wrap">
+  <header class="hero">
+    <h1>Review pull requests in minutes</h1>
+    <p>Paste a pull request link. The agent checks it for bugs, security problems and code quality, then gives you a verdict with suggested fixes.</p>
   </header>
 
-  <div class="modes">
-    <label><input type="radio" name="mode" value="pr" checked> Review an existing Pull Request</label>
-    <label><input type="radio" name="mode" value="demo"> Demo: create a test PR</label>
-  </div>
-
-  <section class="input-row">
-    <input id="url" type="text" placeholder="https://github.com/owner/repo/pull/12" autocomplete="off">
-    <button id="start">Start Review</button>
+  <section class="panel">
+    <div class="modes" role="radiogroup" aria-label="Review mode">
+      <label><input type="radio" name="mode" value="pr" checked> Review an existing pull request</label>
+      <label><input type="radio" name="mode" value="demo"> Demo: create a test PR</label>
+    </div>
+    <p id="demo-note" class="note" hidden>Demo mode creates a branch and a test pull request in the repository you enter, so you need write access to it.</p>
+    <div class="input-row">
+      <input id="url" type="text" autocomplete="off" aria-label="GitHub link">
+      <button id="start">Start review</button>
+    </div>
+    <div id="error" class="error" role="alert" hidden></div>
   </section>
-  <div id="error" class="error" hidden></div>
 
   <section class="pipeline">
     <div class="stage" id="stage-github" data-status="pending">
-      <span class="num">01</span><h2 id="t-github">CONNECT REPO</h2><p class="state">Pending</p>
+      <span class="num">01</span><h2 id="t-github">Connect repo</h2><p class="state">Pending</p>
     </div>
     <div class="arrow">&#10140;</div>
     <div class="stage" id="stage-pr" data-status="pending">
-      <span class="num">02</span><h2 id="t-pr">LOAD PR</h2><p class="state">Pending</p>
+      <span class="num">02</span><h2 id="t-pr">Load PR</h2><p class="state">Pending</p>
     </div>
     <div class="arrow">&#10140;</div>
     <div class="stage" id="stage-ai" data-status="pending">
-      <span class="num">03</span><h2>AI REVIEW</h2><p class="state">Pending</p>
+      <span class="num">03</span><h2>AI review</h2><p class="state">Pending</p>
       <ul class="subs">
         <li id="sub-bug_analysis" data-status="pending">Analyzing bugs</li>
         <li id="sub-security_analysis" data-status="pending">Analyzing security</li>
@@ -44,13 +53,16 @@
     </div>
   </section>
 
-  <section class="card">
-    <h3>Live progress</h3>
+  <section class="panel">
+    <div class="panel-head"><h3>Live progress</h3><span id="timer" class="timer">0:00</span></div>
     <pre id="log">Waiting to start...</pre>
   </section>
 
   <section id="result" hidden>
-    <h2 class="result-title">AI REVIEW RESULT</h2>
+    <div class="result-head">
+      <h2 class="result-title">Review result</h2>
+      <button id="copy" class="ghost">Copy report</button>
+    </div>
     <div id="verdict" class="verdict"></div>
     <p id="summary" class="summary"></p>
     <div id="counts" class="counts"></div>
@@ -58,7 +70,14 @@
     <div id="warnings"></div>
     <div id="issues"></div>
   </section>
+
+  <section id="history-wrap" class="panel" hidden>
+    <div class="panel-head"><h3>Recent reviews on this device</h3><button id="clear" class="link">Clear</button></div>
+    <div id="history"></div>
+  </section>
 </main>
+
+<footer><div class="wrap foot">GitHub PR Review Agent &middot; Built with Flask and AI</div></footer>
 <script src="/static/app.js"></script>
 </body>
 </html>
